@@ -1,0 +1,14 @@
+*.tf*
+*.md
+*.env
+docker*
+Dockerfile
+.terraform*
+# Keep .devcontainer/ in the build context — the image COPYs shell/prompt.sh from there.
+# Without this exception, ".*" hides the whole directory and docker build fails on COPY.
+.*
+!.devcontainer/
+!.devcontainer/**
+
+config/
+chainsaw_jugglers/node_modules/

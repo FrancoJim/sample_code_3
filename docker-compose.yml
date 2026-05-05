@@ -1,0 +1,10 @@
+services:
+  sample_app:
+    container_name: sample_code_3
+    image: theneedful/sample_code_3
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Host 8080 is often already taken (local Node, other stacks). Use 8081 on Mac.
+    ports:
+      - "127.0.0.1:8081:8080"

@@ -1,0 +1,115 @@
+name: Build, push, and deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  # Required for Workload Identity Federation — no long-lived SA keys stored as secrets.
+  id-token: write
+
+env:
+  IMAGE: ghcr.io/francojim/sample_code_3:latest
+  TF_DIR: terraform
+  GCP_REGION: us-east1
+  CLOUD_RUN_SERVICE: sample-code-3-web
+  PUBLIC_DOMAIN: sample3.francojim.com
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch default branch for path comparison
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git fetch origin "${DEFAULT_BRANCH}" --depth=200
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: "origin/${{ github.event.repository.default_branch }}"
+          filters: |
+            code:
+              - 'chainsaw_jugglers/**'
+              - 'Dockerfile'
+
+  build-and-push:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push container image
+        env:
+          IMAGE: ${{ env.IMAGE }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/build_and_push.sh --push
+
+  deploy:
+    needs: [changes, build-and-push]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Keyless GCP auth via Workload Identity Federation ─────────────────────
+      # No GCP_SA_KEY secret required — the OIDC token minted by GitHub Actions
+      # is exchanged directly for short-lived GCP credentials.
+      #
+      # One-time setup (run once per repo, not per workflow run):
+      #   1. Create a Workload Identity Pool and Provider in GCP IAM:
+      #        gcloud iam workload-identity-pools create "github-actions" \
+      #          --project="${GCP_PROJECT_ID}" --location="global" \
+      #          --display-name="GitHub Actions"
+      #
+      #        gcloud iam workload-identity-pools providers create-oidc "github" \
+      #          --project="${GCP_PROJECT_ID}" --location="global" \
+      #          --workload-identity-pool="github-actions" \
+      #          --display-name="GitHub" \
+      #          --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+      #          --issuer-uri="https://token.actions.githubusercontent.com"
+      #
+      #   2. Grant the SA impersonation rights scoped to this repo:
+      #        gcloud iam service-accounts add-iam-policy-binding \
+      #          "${SA_EMAIL}" \
+      #          --project="${GCP_PROJECT_ID}" \
+      #          --role="roles/iam.workloadIdentityUser" \
+      #          --member="principalSet://iam.googleapis.com/${POOL_RESOURCE_NAME}/attribute.repository/francojim/sample_code_3"
+      #
+      #   3. Set two repository secrets (no JSON key, just IDs):
+      #        GCP_PROJECT_ID      — the GCP project ID
+      #        GCP_WIF_PROVIDER    — projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/providers/github
+      #        GCP_SERVICE_ACCOUNT — deploy-sa@PROJECT_ID.iam.gserviceaccount.com
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform deploy (runner.sh)
+        env:
+          TF_DIR: ${{ env.TF_DIR }}
+          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+          TF_VAR_docker_image: ${{ env.IMAGE }}
+          TF_VAR_region: ${{ env.GCP_REGION }}
+          TF_VAR_cloud_run_service_name: ${{ env.CLOUD_RUN_SERVICE }}
+          TF_VAR_domain: ${{ env.PUBLIC_DOMAIN }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ env.GCP_REGION }}
+          CLOUD_RUN_SERVICE: ${{ env.CLOUD_RUN_SERVICE }}
+          PUBLIC_DOMAIN: ${{ env.PUBLIC_DOMAIN }}
+        run: bash scripts/runner.sh deploy

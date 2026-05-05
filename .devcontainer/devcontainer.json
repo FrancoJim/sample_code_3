@@ -1,0 +1,61 @@
+{
+  "name": "sample_code_3",
+
+  "dockerPath": "${localWorkspaceFolder}/.devcontainer/docker-wrap.sh",
+  "projectName": "sample_code_3",
+
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+
+  "remoteUser": "vscode",
+
+  "postCreateCommand": "bash -lc 'cd /workspace/chainsaw_jugglers && rm -rf node_modules && npm ci'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "hashicorp.terraform",
+        "googlecloudtools.cloudcode",
+        "ms-azuretools.vscode-docker",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "github.vscode-github-actions",
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "dbaeumer.vscode-eslint",
+        "timonwong.shellcheck",
+        "foxundermoon.shell-format",
+        "redhat.ansible",
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+        "EditorConfig.EditorConfig",
+        "streetsidesoftware.code-spell-checker"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.rulers": [100],
+        "[terraform]": {
+          "editor.defaultFormatter": "hashicorp.terraform",
+          "editor.formatOnSave": true
+        },
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter"
+        },
+        "[shellscript]": {
+          "editor.defaultFormatter": "foxundermoon.shell-format"
+        },
+        "terraform.languageServer.enable": true,
+        "docker.environment": {
+          "DOCKER_HOST": "unix:///var/run/docker.sock"
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": { "label": "App", "onAutoForward": "openBrowser" },
+    "5050": { "label": "Local registry (host)", "onAutoForward": "silent" }
+  }
+}

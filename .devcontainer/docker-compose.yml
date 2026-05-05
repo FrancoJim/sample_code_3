@@ -1,0 +1,62 @@
+# Project name keeps compose state distinct from other repos' .devcontainer folders.
+name: sample_code_3
+
+services:
+
+  # ── Devcontainer workspace ────────────────────────────────────────────────────
+  # Ubuntu environment with every CLI tool the repo needs:
+  # Terraform, gcloud, Docker CLI, kubectl, Helm, Node 20, Python 3, Ansible.
+  devcontainer:
+    build:
+      # Docker Compose resolves context relative to the project directory,
+      # which is the directory containing this compose file (.devcontainer/).
+      # ".." therefore correctly points to the workspace root (repo root),
+      # allowing COPY instructions in the Dockerfile to reference the full tree.
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: sample_code_3_devcontainer
+    volumes:
+      # Repo workspace
+      - ..:/workspace:cached
+      # Docker socket — OrbStack exposes a standard socket at this path
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persist gcloud auth credentials across rebuilds
+      - gcloud-config:/home/vscode/.config/gcloud
+      # Persist kube config
+      - kube-config:/home/vscode/.kube
+    # Keep container alive
+    command: sleep infinity
+    environment:
+      # Point Docker CLI at the mounted host socket
+      DOCKER_HOST: unix:///var/run/docker.sock
+      # Local registry shorthand used in scripts
+      LOCAL_REGISTRY: registry:5000
+    networks:
+      - devnet
+
+  # ── Local Docker registry ─────────────────────────────────────────────────────
+  # In-container DNS: registry:5000. On the host, published on 5050 — macOS often
+  # occupies 5000 (AirPlay Receiver / Control Center), so we avoid binding :5000 here.
+  # From the host browser / docker login: localhost:5050
+  # From inside this compose network (push/pull): registry:5000 — unchanged:
+  #   docker build -t registry:5000/sample_code_3:dev .
+  #   docker push registry:5000/sample_code_3:dev
+  registry:
+    image: registry:2
+    container_name: sample_code_3_registry
+    ports:
+      - "127.0.0.1:5050:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    restart: unless-stopped
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    driver: bridge
+
+volumes:
+  gcloud-config:
+  kube-config:
+  registry-data:
