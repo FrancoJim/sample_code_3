@@ -1,6 +1,27 @@
 # sample_code_3 — GCP production deployment demo
 
+[![CI](https://github.com/FrancoJim/sample_code_3/actions/workflows/ci.yml/badge.svg)](https://github.com/FrancoJim/sample_code_3/actions/workflows/ci.yml)
+
 > **Portfolio project.** The application is a fictional business (Timberline Toss Academy, a chainsaw juggling school) used as a realistic deployment target. The point of the repo is the infrastructure and delivery pipeline, not the app itself.
+
+---
+
+## Highlights
+
+- **Edge-to-container on GCP with Terraform**: Cloudflare DNS, global HTTPS LB, Certificate Manager TLS, Cloud Armor geo policy, Cloud Run v2 reachable only through the LB
+- **Keyless deploys**: GitHub Actions authenticates with Workload Identity Federation; no service-account keys anywhere
+- **Production container**: Node 24 LTS, prod deps only, non-root, read-only filesystem, healthcheck, graceful SIGTERM shutdown (no dropped requests on scale-down)
+- **Checked on every push** without cloud credentials: app tests, `npm audit`, `terraform fmt`/`validate` against a committed lock file, shellcheck, hadolint, image smoke test
+- **Dependabot** for npm, Docker, Terraform providers and GitHub Actions
+
+## Quick start
+
+```bash
+make              # list every task
+make check        # tests, npm audit, terraform validate, shellcheck, hadolint (all in containers)
+make docker-run   # build and run the image at http://127.0.0.1:8081
+make deploy       # real GCP: terraform apply + readiness + HTTPS probe (needs credentials)
+```
 
 ---
 
@@ -8,7 +29,7 @@
 
 | Skill | Implementation |
 | ----- | -------------- |
-| Containerisation | Node 20 on `node:20-bookworm-slim`, production deps only, non-root user, `HEALTHCHECK` |
+| Containerisation | Node 24 LTS on `node:24-bookworm-slim`, production deps only, non-root user, `HEALTHCHECK`, graceful shutdown |
 | Google Cloud infrastructure | Cloud Run v2 · global external HTTPS LB · Cloud Armor geo policy · Certificate Manager TLS · Cloudflare DNS |
 | Terraform | Modular `.tf` files per resource group, `variables.tf` / `outputs.tf`, GCS-ready remote state |
 | CI/CD — keyless auth | GitHub Actions with **Workload Identity Federation** — no long-lived SA keys stored as secrets |
@@ -26,7 +47,7 @@ Browser
               └─► Cloud Armor backend security policy  (geo allow-list; deny 403 elsewhere)
                     └─► Serverless NEG
                           └─► Cloud Run v2 service  (internal-LB ingress only)
-                                └─► Container: node:20-bookworm-slim, port 8080
+                                └─► Container: node:24-bookworm-slim, port 8080
 ```
 
 ---
@@ -36,9 +57,11 @@ Browser
 ```
 .
 ├── .devcontainer/          Ubuntu workspace + local registry (see Devcontainer section)
-├── .github/workflows/
-│   └── build-deploy.yml    build → push → Terraform deploy (workflow_dispatch)
-├── chainsaw_jugglers/      Express app: app.js, public/, package.json
+├── .github/
+│   ├── workflows/ci.yml    tests, audit, terraform validate, lint, image smoke test (push/PR)
+│   ├── workflows/build-deploy.yml  build → push → Terraform deploy (workflow_dispatch)
+│   └── dependabot.yml
+├── chainsaw_jugglers/      Express 5 app: app.js, public/, test/, package.json
 ├── scripts/
 │   ├── build_and_push.sh   docker build / push to GHCR (or any registry)
 │   ├── runner.sh           terraform init / plan / apply / deploy + health checks
@@ -46,6 +69,7 @@ Browser
 ├── terraform/              GCP infra — Cloud Run, LB, Armor, certs, Cloudflare DNS
 ├── docker-compose.yml      Run the app locally (127.0.0.1:8081 → container 8080)
 ├── Dockerfile              Production container image
+├── Makefile                make help: app, Docker, infra-check and deploy targets
 └── example.env             Required env vars checklist
 ```
 
@@ -59,6 +83,8 @@ Browser
 cd chainsaw_jugglers
 npm ci
 npm start          # http://localhost:8080
+npm run dev        # same, with auto-reload (node --watch)
+npm test           # node:test suite
 ```
 
 ### Docker Compose

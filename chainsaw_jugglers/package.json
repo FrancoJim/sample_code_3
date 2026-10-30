@@ -1,11 +1,12 @@
 {
   "name": "sample_code_3",
   "version": "1.0.0",
-  "description": "A basic Node.js app",
+  "description": "Express site for a fictional chainsaw juggling school (deployment demo)",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "node --watch app.js",
+    "test": "node --test"
   },
   "keywords": [
     "node",
@@ -15,9 +16,9 @@
   "author": "Kevin Lang",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1"
+    "express": "^5.2.1"
   },
-  "devDependencies": {
-    "nodemon": "^2.0.7"
+  "engines": {
+    "node": ">=22"
   }
 }

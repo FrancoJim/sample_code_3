@@ -2,7 +2,8 @@
 .claude/
 
 *.tfstate
-.terraform*
+.terraform/
+.terraform.tfstate*
 terraform.tfstate*
 ssh/
 config/
@@ -18,3 +19,6 @@ dist/
 *.swo
 *.swn
 *.bak
+# Local virtualenv / test output
+.venv/
+coverage/

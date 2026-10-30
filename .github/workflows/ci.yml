@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App tests + audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: chainsaw_jugglers
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: chainsaw_jugglers/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm audit --omit=dev
+
+  infra:
+    name: Terraform, shell + Dockerfile checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Static checks only: no cloud credentials, nothing is planned or applied
+      - run: make tf-check
+      - run: make shellcheck
+      - run: make hadolint
+
+  image:
+    name: Build + smoke test image
+    needs: [app, infra]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: docker build -t sample_code_3:ci .
+
+      - name: Smoke test
+        run: |
+          docker run -d --name web -p 8080:8080 --read-only sample_code_3:ci
+          for _ in $(seq 1 20); do curl -fsS -o /dev/null http://localhost:8080/ && break; sleep 1; done
+          curl -fsS -o /dev/null http://localhost:8080/about
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/nope)" = 404
+          # Graceful shutdown: SIGTERM must exit 0 well before Docker's 10s kill
+          docker stop -t 5 web
+          test "$(docker inspect -f '{{.State.ExitCode}}' web)" = 0
