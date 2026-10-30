@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim
+FROM node:25-bookworm-slim
 LABEL org.opencontainers.image.source="https://github.com/FrancoJim/sample_code_3"
 
 ENV NODE_ENV=production \
