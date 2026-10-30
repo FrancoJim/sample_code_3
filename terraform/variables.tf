@@ -64,9 +64,3 @@ variable "cloudflare_proxied" {
   type        = bool
   default     = false
 }
-
-variable "cloudflare_allow_overwrite" {
-  description = "Allow Terraform to overwrite an existing DNS record with the same name and type"
-  type        = bool
-  default     = false
-}
